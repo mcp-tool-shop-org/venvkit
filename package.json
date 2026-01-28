@@ -1,7 +1,22 @@
 {
   "name": "venvkit",
   "version": "0.1.0",
-  "private": true,
+  "description": "Python virtual environment diagnostic toolkit for Windows ML workflows",
+  "author": {
+    "name": "mcp-tool-shop",
+    "email": "64996768+mcp-tool-shop@users.noreply.github.com"
+  },
+  "keywords": ["python", "venv", "virtualenv", "diagnostics", "health-check", "windows", "ml", "pytorch", "environment"],
+  "license": "MIT",
+  "homepage": "https://github.com/mcp-tool-shop/venvkit",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcp-tool-shop/venvkit"
+  },
+  "bugs": {
+    "url": "https://github.com/mcp-tool-shop/venvkit/issues"
+  },
+  "private": false,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
