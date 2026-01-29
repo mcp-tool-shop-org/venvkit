@@ -211,4 +211,224 @@ describe("runLog", () => {
       expect(summary.byEnv.size).toBe(0);
     });
   });
+
+  describe("task lifecycle logging", () => {
+    let tempDir: string;
+    let logPath: string;
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "venvkit-lifecycle-"));
+      logPath = path.join(tempDir, "lifecycle.jsonl");
+    });
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    it("records task start with timestamp", async () => {
+      const startTime = new Date().toISOString();
+      const evt = makeRunEvent({
+        at: startTime,
+        taskName: "pytest",
+        ok: true,
+      });
+
+      await appendRunLog(logPath, evt);
+      const runs = await readRunLog(logPath);
+
+      expect(runs).toHaveLength(1);
+      expect(runs[0]?.at).toBe(startTime);
+      expect(runs[0]?.task.name).toBe("pytest");
+    });
+
+    it("records task completion with exit code", async () => {
+      const evt = makeRunEvent({
+        ok: true,
+        outcome: { ok: true, exitCode: 0, durationMs: 1234 },
+      });
+
+      await appendRunLog(logPath, evt);
+      const runs = await readRunLog(logPath);
+
+      expect(runs[0]?.outcome.ok).toBe(true);
+      expect(runs[0]?.outcome.exitCode).toBe(0);
+      expect(runs[0]?.outcome.durationMs).toBe(1234);
+    });
+
+    it("records task failure with error class", async () => {
+      const evt = makeRunEvent({
+        ok: false,
+        errorClass: "SSL_BROKEN",
+      });
+
+      await appendRunLog(logPath, evt);
+      const runs = await readRunLog(logPath);
+
+      expect(runs[0]?.outcome.ok).toBe(false);
+      expect(runs[0]?.outcome.errorClass).toBe("SSL_BROKEN");
+    });
+
+    it("records task failure with stderr snippet", async () => {
+      const evt: RunLogEventV1 = {
+        ...makeRunEvent({ ok: false }),
+        outcome: {
+          ok: false,
+          exitCode: 1,
+          errorClass: "IMPORT_ERROR",
+          stderrSnippet: "ModuleNotFoundError: No module named 'torch'",
+        },
+      };
+
+      await appendRunLog(logPath, evt);
+      const runs = await readRunLog(logPath);
+
+      expect(runs[0]?.outcome.stderrSnippet).toContain("ModuleNotFoundError");
+    });
+  });
+
+  describe("concurrent task handling", () => {
+    let tempDir: string;
+    let logPath: string;
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "venvkit-concurrent-"));
+      logPath = path.join(tempDir, "concurrent.jsonl");
+    });
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    it("handles concurrent appends from multiple tasks", async () => {
+      // Simulate multiple concurrent task completions
+      const events = Array.from({ length: 10 }, (_, i) =>
+        makeRunEvent({ taskName: `task${i}`, runId: `run_concurrent_${i}` })
+      );
+
+      // Append all concurrently
+      await Promise.all(events.map((evt) => appendRunLog(logPath, evt)));
+
+      const runs = await readRunLog(logPath);
+
+      // All events should be recorded
+      expect(runs).toHaveLength(10);
+      const runIds = runs.map((r) => r.runId);
+      events.forEach((evt) => {
+        expect(runIds).toContain(evt.runId);
+      });
+    });
+
+    it("maintains event order within single task", async () => {
+      // Write sequentially to maintain order
+      for (let i = 0; i < 5; i++) {
+        await appendRunLog(
+          logPath,
+          makeRunEvent({ taskName: "sequential", runId: `run_seq_${i}` })
+        );
+      }
+
+      const runs = await readRunLog(logPath);
+
+      expect(runs).toHaveLength(5);
+      for (let i = 0; i < 5; i++) {
+        expect(runs[i]?.runId).toBe(`run_seq_${i}`);
+      }
+    });
+  });
+
+  describe("log persistence and retrieval", () => {
+    let tempDir: string;
+    let logPath: string;
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "venvkit-persist-"));
+      logPath = path.join(tempDir, "persist.jsonl");
+    });
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    it("persists events across sessions", async () => {
+      // Session 1: write events
+      await appendRunLog(logPath, makeRunEvent({ taskName: "session1", runId: "run_s1" }));
+      await appendRunLog(logPath, makeRunEvent({ taskName: "session1", runId: "run_s2" }));
+
+      // Session 2: read and write more
+      const initialRuns = await readRunLog(logPath);
+      expect(initialRuns).toHaveLength(2);
+
+      await appendRunLog(logPath, makeRunEvent({ taskName: "session2", runId: "run_s3" }));
+
+      // Session 3: verify all present
+      const finalRuns = await readRunLog(logPath);
+      expect(finalRuns).toHaveLength(3);
+      expect(finalRuns.map((r) => r.runId)).toEqual(["run_s1", "run_s2", "run_s3"]);
+    });
+
+    it("retrieves runs by various criteria", async () => {
+      await appendRunLog(logPath, makeRunEvent({ taskName: "pytest", ok: true }));
+      await appendRunLog(logPath, makeRunEvent({ taskName: "pytest", ok: false }));
+      await appendRunLog(logPath, makeRunEvent({ taskName: "lint", ok: true }));
+
+      const runs = await readRunLog(logPath);
+      const summary = summarizeRuns(runs);
+
+      // Can filter by task
+      expect(summary.byTask.get("pytest")).toEqual({ passed: 1, failed: 1 });
+      expect(summary.byTask.get("lint")).toEqual({ passed: 1, failed: 0 });
+    });
+  });
+
+  describe("log file operations", () => {
+    let tempDir: string;
+    let logPath: string;
+
+    beforeEach(async () => {
+      tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "venvkit-ops-"));
+      logPath = path.join(tempDir, "ops.jsonl");
+    });
+
+    afterEach(async () => {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
+
+    it("handles log file with only newlines", async () => {
+      await fs.writeFile(logPath, "\n\n\n", "utf8");
+
+      const runs = await readRunLog(logPath);
+
+      expect(runs).toHaveLength(0);
+    });
+
+    it("handles very large events", async () => {
+      const largeStderr = "x".repeat(10000);
+      const evt: RunLogEventV1 = {
+        ...makeRunEvent({ ok: false }),
+        outcome: {
+          ok: false,
+          exitCode: 1,
+          stderrSnippet: largeStderr,
+        },
+      };
+
+      await appendRunLog(logPath, evt);
+      const runs = await readRunLog(logPath);
+
+      expect(runs).toHaveLength(1);
+      expect(runs[0]?.outcome.stderrSnippet).toBe(largeStderr);
+    });
+
+    it("clears log by overwriting", async () => {
+      await appendRunLog(logPath, makeRunEvent({ runId: "run_1" }));
+      await appendRunLog(logPath, makeRunEvent({ runId: "run_2" }));
+
+      // Clear by overwriting with empty content
+      await fs.writeFile(logPath, "", "utf8");
+
+      const runs = await readRunLog(logPath);
+
+      expect(runs).toHaveLength(0);
+    });
+  });
 });

@@ -607,4 +607,135 @@ describe("mapRender", () => {
       expect(contagionInsight?.text).toContain("SSL_BROKEN");
     });
   });
+
+  describe("empty and edge cases", () => {
+    it("renders empty graph with no reports", () => {
+      const result = mapRender([], []);
+
+      expect(result.graph.summary.envCount).toBe(0);
+      expect(result.graph.summary.baseCount).toBe(0);
+      expect(result.graph.nodes).toHaveLength(0);
+      expect(result.graph.edges).toHaveLength(0);
+    });
+
+    it("renders single node graph", () => {
+      const reports = [makeReport("C:\\single\\.venv\\Scripts\\python.exe")];
+
+      const result = mapRender(reports, []);
+
+      expect(result.graph.summary.envCount).toBe(1);
+      // Should have venv node and base node
+      expect(result.graph.nodes.filter((n) => n.type === "venv")).toHaveLength(1);
+      expect(result.graph.nodes.filter((n) => n.type === "base")).toHaveLength(1);
+    });
+
+    it("handles invalid or missing facts gracefully", () => {
+      const report: DoctorLiteReport = {
+        pythonPath: "C:\\broken\\python.exe",
+        ranAt: new Date().toISOString(),
+        status: "bad",
+        score: 0,
+        summary: "Missing facts",
+        facts: undefined as any, // Missing facts
+        findings: [],
+      };
+
+      // Should not throw
+      expect(() => mapRender([report], [])).not.toThrow();
+    });
+  });
+
+  describe("output format control", () => {
+    it("returns json only when format is json", () => {
+      const reports = [makeReport("C:\\project\\.venv\\Scripts\\python.exe")];
+
+      const result = mapRender(reports, [], { format: "json" });
+
+      expect(result.graph).toBeDefined();
+      expect(result.mermaid).toBeUndefined();
+    });
+
+    it("returns mermaid only when format is mermaid", () => {
+      const reports = [makeReport("C:\\project\\.venv\\Scripts\\python.exe")];
+
+      const result = mapRender(reports, [], { format: "mermaid" });
+
+      expect(result.mermaid).toBeDefined();
+      // graph is still returned for internal consistency
+    });
+
+    it("returns both when format is both", () => {
+      const reports = [makeReport("C:\\project\\.venv\\Scripts\\python.exe")];
+
+      const result = mapRender(reports, [], { format: "both" });
+
+      expect(result.graph).toBeDefined();
+      expect(result.mermaid).toBeDefined();
+    });
+  });
+
+  describe("complex graph rendering", () => {
+    it("renders complex graph with multiple bases and venvs", () => {
+      const reports = [
+        makeReport("C:\\p1\\.venv\\Scripts\\python.exe", { basePrefix: "C:\\Python311" }),
+        makeReport("C:\\p2\\.venv\\Scripts\\python.exe", { basePrefix: "C:\\Python311" }),
+        makeReport("C:\\p3\\.venv\\Scripts\\python.exe", { basePrefix: "C:\\Python310" }),
+        makeReport("C:\\p4\\.venv\\Scripts\\python.exe", { basePrefix: "C:\\Python310" }),
+        makeReport("C:\\p5\\.venv\\Scripts\\python.exe", { basePrefix: "C:\\Python39" }),
+      ];
+
+      const result = mapRender(reports, []);
+
+      expect(result.graph.summary.envCount).toBe(5);
+      expect(result.graph.summary.baseCount).toBe(3);
+
+      // Should have edges from each base to its venvs
+      const usesBaseEdges = result.graph.edges.filter((e) => e.type === "USES_BASE");
+      expect(usesBaseEdges.length).toBe(5);
+    });
+
+    it("renders with clusters (base subgraphs)", () => {
+      const reports = [
+        makeReport("C:\\p1\\.venv\\Scripts\\python.exe", { basePrefix: "C:\\Python311" }),
+        makeReport("C:\\p2\\.venv\\Scripts\\python.exe", { basePrefix: "C:\\Python311" }),
+      ];
+
+      const result = mapRender(reports, [], { includeBaseSubgraphs: true, format: "both" });
+
+      // Mermaid should include subgraph syntax
+      expect(result.mermaid).toContain("subgraph");
+    });
+  });
+
+  describe("render validation", () => {
+    it("validates all nodes have unique IDs", () => {
+      const reports = [
+        makeReport("C:\\p1\\.venv\\Scripts\\python.exe"),
+        makeReport("C:\\p2\\.venv\\Scripts\\python.exe"),
+        makeReport("C:\\p3\\.venv\\Scripts\\python.exe"),
+      ];
+
+      const result = mapRender(reports, []);
+
+      const nodeIds = result.graph.nodes.map((n) => n.id);
+      const uniqueIds = new Set(nodeIds);
+      expect(uniqueIds.size).toBe(nodeIds.length);
+    });
+
+    it("validates all edges reference existing nodes", () => {
+      const reports = [
+        makeReport("C:\\p1\\.venv\\Scripts\\python.exe"),
+        makeReport("C:\\p2\\.venv\\Scripts\\python.exe"),
+      ];
+
+      const result = mapRender(reports, []);
+
+      const nodeIds = new Set(result.graph.nodes.map((n) => n.id));
+
+      for (const edge of result.graph.edges) {
+        expect(nodeIds.has(edge.from)).toBe(true);
+        expect(nodeIds.has(edge.to)).toBe(true);
+      }
+    });
+  });
 });

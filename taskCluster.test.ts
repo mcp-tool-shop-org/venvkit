@@ -356,5 +356,114 @@ describe("taskCluster", () => {
       expect(summary.overallSuccessRate).toBeCloseTo(23 / 25);
       expect(summary.flakyCount).toBe(1); // test2 is flaky (60% success)
     });
+
+    it("handles empty clusters array", () => {
+      const summary = summarizeClusters([]);
+
+      expect(summary.totalTasks).toBe(0);
+      expect(summary.totalRuns).toBe(0);
+      expect(summary.totalOk).toBe(0);
+      expect(summary.totalFail).toBe(0);
+      expect(summary.overallSuccessRate).toBe(0);
+      expect(summary.flakyCount).toBe(0);
+    });
+
+    it("counts env-dependent flaky tasks", () => {
+      const clusters: TaskCluster[] = [
+        {
+          sig: { sigId: "task_1", name: "test", command: "test", requirementsKey: "" },
+          runs: 4,
+          ok: 2,
+          fail: 2,
+          successRate: 0.5,
+          lastAt: "2024-01-01T12:00:00Z",
+          failureCounts: { RUN_FAILED: 2 },
+          envCounts: { env1: 2, env2: 2 },
+          envFailCounts: { env2: 2 },
+          envOkCounts: { env1: 2 },
+        },
+      ];
+
+      const summary = summarizeClusters(clusters);
+
+      expect(summary.envDependentFlakyCount).toBe(1);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("handles single task cluster", () => {
+      const runs = [makeRun({ taskName: "single", ok: true })];
+
+      const clusters = clusterRuns(runs);
+
+      expect(clusters).toHaveLength(1);
+      expect(clusters[0]?.runs).toBe(1);
+      expect(clusters[0]?.ok).toBe(1);
+      expect(clusters[0]?.fail).toBe(0);
+    });
+
+    it("handles empty runs array", () => {
+      const clusters = clusterRuns([]);
+
+      expect(clusters).toHaveLength(0);
+    });
+
+    it("handles many independent tasks", () => {
+      const runs = Array.from({ length: 10 }, (_, i) =>
+        makeRun({ taskName: `task${i}`, command: `cmd${i}`, ok: true })
+      );
+
+      const clusters = clusterRuns(runs);
+
+      expect(clusters).toHaveLength(10);
+      clusters.forEach((c) => {
+        expect(c.runs).toBe(1);
+      });
+    });
+
+    it("clusters runs with complex dependencies", () => {
+      // Simulate a DAG-like structure: multiple tasks that could have deps
+      const runs = [
+        makeRun({ taskName: "build", command: "npm run build", ok: true }),
+        makeRun({ taskName: "build", command: "npm run build", ok: true }),
+        makeRun({ taskName: "test", command: "npm test", packages: ["jest"], ok: true }),
+        makeRun({ taskName: "test", command: "npm test", packages: ["jest"], ok: false }),
+        makeRun({ taskName: "lint", command: "eslint .", ok: true }),
+        makeRun({ taskName: "deploy", command: "npm run deploy", ok: true }),
+      ];
+
+      const clusters = clusterRuns(runs);
+
+      // Should cluster by task signature
+      expect(clusters.length).toBe(4); // build, test, lint, deploy
+
+      const buildCluster = clusters.find((c) => c.sig.name === "build");
+      expect(buildCluster?.runs).toBe(2);
+      expect(buildCluster?.ok).toBe(2);
+
+      const testCluster = clusters.find((c) => c.sig.name === "test");
+      expect(testCluster?.runs).toBe(2);
+      expect(testCluster?.ok).toBe(1);
+      expect(testCluster?.fail).toBe(1);
+    });
+
+    it("handles cyclic-like patterns (same task multiple times)", () => {
+      // While taskCluster doesn't handle actual dependency cycles,
+      // it should handle the same task being run many times
+      const runs = Array.from({ length: 100 }, (_, i) =>
+        makeRun({
+          taskName: "cyclic",
+          ok: i % 3 === 0, // 33% success rate
+          errorClass: "INTERMITTENT_FAIL",
+        })
+      );
+
+      const clusters = clusterRuns(runs);
+
+      expect(clusters).toHaveLength(1);
+      expect(clusters[0]?.runs).toBe(100);
+      // Low success rate: not flaky (below 20% threshold)
+      expect(isFlaky(clusters[0]!)).toBe(false);
+    });
   });
 });

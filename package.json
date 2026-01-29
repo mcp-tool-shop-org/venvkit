@@ -37,7 +37,10 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
+    "format": "eslint . --fix",
+    "audit": "npm audit",
     "map": "node dist/map_cli.js"
   },
   "devDependencies": {

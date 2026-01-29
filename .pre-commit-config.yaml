@@ -1,0 +1,29 @@
+# Venvkit Pre-commit Hooks
+# Run: npm install -g @commitlint/cli husky && npx husky install
+
+repos:
+  # TypeScript/JavaScript linting
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: npx eslint
+        language: node
+        types: [typescript]
+        pass_filenames: true
+
+  # Security
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
+      - id: detect-aws-credentials
+        args: [--allow-missing-credentials]
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
