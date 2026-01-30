@@ -1,6 +1,6 @@
 {
-  "name": "venvkit",
-  "version": "0.1.0",
+  "name": "@mcp-tool-shop/venvkit",
+  "version": "0.2.0",
   "description": "Python virtual environment diagnostic toolkit for Windows ML workflows",
   "author": {
     "name": "mcp-tool-shop",
