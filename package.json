@@ -1,5 +1,5 @@
 {
-  "name": "@mcp-tool-shop/venvkit",
+  "name": "@mcptoolshop/venvkit",
   "version": "0.2.0",
   "description": "Python virtual environment diagnostic toolkit for Windows ML workflows",
   "author": {
