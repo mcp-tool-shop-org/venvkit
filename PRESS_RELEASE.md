@@ -112,7 +112,7 @@ venvkit gives you visibility into problems you couldn't see before. Instead of g
 ## Getting Started
 
 ```bash
-git clone https://github.com/mcp-tool-shop/venvkit
+git clone https://github.com/mcp-tool-shop-org/venvkit
 cd venvkit
 npm install
 npm run build
@@ -134,7 +134,7 @@ node dist/map_cli.js --root C:\projects --httpsProbe
 
 ## Links
 
-- **Repository**: https://github.com/mcp-tool-shop/venvkit
+- **Repository**: https://github.com/mcp-tool-shop-org/venvkit
 - **Release**: v0.1.0
 
 ---

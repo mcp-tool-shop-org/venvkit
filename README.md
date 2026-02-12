@@ -1,6 +1,6 @@
 # venvkit
 
-[![CI](https://github.com/mcp-tool-shop/venvkit/actions/workflows/ci.yml/badge.svg)](https://github.com/mcp-tool-shop/venvkit/actions/workflows/ci.yml)
+[![CI](https://github.com/mcp-tool-shop-org/venvkit/actions/workflows/ci.yml/badge.svg)](https://github.com/mcp-tool-shop-org/venvkit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Python virtual environment diagnostic toolkit for Windows ML workflows.**
@@ -10,7 +10,7 @@ Scans your system for Python environments, diagnoses health issues (SSL, DLLs, A
 ## 30-Second Quickstart
 
 ```bash
-git clone https://github.com/mcp-tool-shop/venvkit && cd venvkit
+git clone https://github.com/mcp-tool-shop-org/venvkit && cd venvkit
 npm install && npm run build
 node dist/map_cli.js --root C:\projects --httpsProbe
 # Open .venvkit/venv-map.html in your browser

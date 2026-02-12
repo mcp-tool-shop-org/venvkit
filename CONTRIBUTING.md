@@ -5,7 +5,7 @@ Thanks for your interest in improving venvkit.
 ## Quick Start
 
 ```bash
-git clone https://github.com/mcp-tool-shop/venvkit
+git clone https://github.com/mcp-tool-shop-org/venvkit
 cd venvkit
 npm install
 npm test
